@@ -1,0 +1,122 @@
+---
+title: "Viral Annotation Looking Experiment RNA Isolation Analysis"
+subtitle: "Computational workflow for the analysis of COVID-19 samples"
+author: "Valeria Mirici Kappa, Constantinos Yeles (Konstantinos Geles)"
+date: "Initial Commit: 09/12/2021 Last Update: `r format(Sys.Date(), '%a %b %d %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    theme: paper 
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+# Workflow
+
+## Run the docker container
+```{bash}
+docker run --rm -ti -v $(pwd):/home/my_data  congelos/sncrna_workflow
+```
+
+
+## Quality analysis of the samples
+```{bash}
+ANALYSIS_FOLDER="my_data/Datasets_analysis/"
+
+'fastqc' --threads 6 --outdir="${ANALYSIS_FOLDER}"/qc_before_trim \
+"${ANALYSIS_FOLDER}"/downloaded_samples/*fastq.gz 
+
+fastqc *fastq.gz -o
+```
+
+## Summaries of qualities
+```{bash}
+
+```
+
+## Adapter trimming and low quality filtering ( cutadapt v2.10 )
+cutadapt -a ADAPTERfw -A ADAPTERrv -m 20 -o trimm_fileR1.fastq -p trimm-fileR2.fastq file_input1.fastq file_input2.fastq
+```{bash}
+
+```
+
+## assembly de novo (megahit v1.2.9)
+input = fastq
+output = contigs.fa file inside the folder of each sample
+/usr/local/MEGAHIT-1.2.9-Linux-x86_64-static/bin/megahit -t 12 --out-prefix sample1 -1 R1.fastq -2 R2.fastq -o /path/to/output
+```{bash}
+for i in *_R1_001_trim.fastq; do SAMPLE=$(echo ${i} | sed "s/_R1_\001\_trim.fastq//"); megahit -t 14 --out-prefix ${SAMPLE} -1 ${SAMPLE}_R1_001_trim.fastq -2 ${SAMPLE}_R2_001_trim.fastq -o ../5_Assembly_megahit/${SAMPLE}; done
+```
+
+## Quality control of the assembly with QUAST 
+```{bash}
+(web http://cab.cc.spbu.ru/quast/)
+```
+
+## Use of contigs.fa to check the quality and classification to clade, lineage
+```{bash}
+# classification of contigs (.fa) with nextclade and pangolin nomenclature 
+# (web https://clades.nextstrain.org/  https://pangolin.cog-uk.io/)
+```
+
+## Alignment to reference genome (whuan) (v0.7.17-r1198-dirty)
+
+input = fastq
+output = sorted and indexed bam file
+bwa mem ref.fa read1.fq read2.fq > aln-pe.sam
+```{bash}
+for i in *_R1_001_trim.fastq; do SAMPLE=$(echo ${i} | sed "s/_R1_\001\_trim.fastq//"); bwa mem -t 14 ../SARS_COV2_isolate_Wuhan-Hu-1.fasta ${SAMPLE}_R1_001_trim.fastq ${SAMPLE}_R2_001_trim.fastq > ../6.1_Aln_bwa/${SAMPLE}.sam; done
+
+cd ../6.1_Aln_bwa
+for i in *.sam; do samtools view -S -@14 -b $i >../6.2_SAMtoBAM/${i/.sam/.bam}; done
+cd ../6.2_SAMtoBAM
+for i in *.bam; do samtools sort -@14 $i -o ../6.3_sortedBAM/${i/.bam/_sorted.bam}; done
+cd ../6.3_sortedBAM
+for i in *.bam; do echo $i; samtools index $i -@14; done
+```
+
+## Variant calling (freebayes  v1.3.2-dirty)
+input = sorted and indexed bam file
+output = vcf
+freebayes -p 1 --min-coverage 5 -q 20 -f /path/to/virusGenome/MN908947.fa -b /path/to/bam/sample1.bam > /path/to/out/sample1_var.vcf
+```{bash}
+for i in *.bam; do freebayes -p 1 --min-coverage 5 -q 20 -f ../SARS_COV2_isolate_Wuhan-Hu-1.fasta -b $i  > ../${i/_sorted.bam/.vcf}; done
+```
+
+## Variant filtering
+input = vcf
+output = filtered vcf 
+snippy-vcf_filter --mincov=f Minimum depth (DP) (default '10')
+```{bash}
+for i in *.vcf; do snippy-vcf_filter --minfrac=0.1 --minqual=20  $i  > 8_filt_vcf_1/${i/.vcf/_filter.vcf} 2> 8_filt_vcf_1/${i/.vcf/_stat.txt}; done
+```
+
+## Variant annotation VEP
+input = filtered vcf
+output = annotated vcf
+```{bash}
+using VEP web version (https://covid-19.ensembl.org/Sars_cov_2/Tools/VEP) or commandline 
+```
+
+## Do the complete table vcf for all samples
+```{bash}
+for i in *.vcf; do bcftools annotate --set-id ${i/_filter.vcf/} $i  > ../9_vcf_ID/${i/_filter.vcf/_vcf_ID.vcf}; done  
+# aggiunge il nome del campione nella colonna ID (nella quale sono presenti solo .)
+bcftools concat *.vcf > all_sample.vcf
+
+```
+
+## Coverage
+input = sorted and indexed bam
+output = table with number of reads for each base position 
+```{bash}
+for i in *sorted.bam; do SAMPLE=$(echo ${i} | sed "s/_sorted.bam//"); qualimap bamqc -bam ${SAMPLE}_sorted.bam -gff Sars_cov_2.ASM985889v3.101.gff -ip -nt 1 -oc ../4.3_Coverage/${SAMPLE}_nonzerocov.txt -outdir ../4.3_Coverage/${SAMPLE} -outformat PDF:HTML; done
+```
