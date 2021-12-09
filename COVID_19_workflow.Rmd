@@ -23,37 +23,64 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 
 ## Run the docker container
 ```{bash}
-docker run --rm -ti -v $(pwd):/home/my_data  congelos/sncrna_workflow
-```
+docker run --rm -ti -v /mnt/NFS_SHARE_11/Demultiplexing/Run_03122021_NextSeq/1_Demultiplexing_COVID_0mm/COVID_TR/:/home/my_data/import -v /mnt/NFS_SHARE_13/:/home/my_data/export  biohaz/covid
 
+SAMPLES_FOLDER="my_data/import/"
+RESULTS_FOLDER="my_data/export/Run_03122021_NextSeq_COVID_0mm_Results"
+
+mkdir $RESULTS_FOLDER
+exit 
+
+docker run --rm -ti -v /mnt/NFS_SHARE_11/Demultiplexing/Run_03122021_NextSeq/1_Demultiplexing_COVID_0mm/COVID_TR/:/home/my_data/import -v /mnt/NFS_SHARE_13/Run_03122021_NextSeq_COVID_0mm_Results/:/home/my_data/export  biohaz/covid
+
+SAMPLES_FOLDER="my_data/import/"
+RESULTS_FOLDER="my_data/export/"
+```
 
 ## Quality analysis of the samples
 ```{bash}
-ANALYSIS_FOLDER="my_data/Datasets_analysis/"
+mkdir "${RESULTS_FOLDER}"/A_qc_before_trim
 
-'fastqc' --threads 6 --outdir="${ANALYSIS_FOLDER}"/qc_before_trim \
-"${ANALYSIS_FOLDER}"/downloaded_samples/*fastq.gz 
-
-fastqc *fastq.gz -o
+'fastqc' --quiet --threads 13 --outdir="${RESULTS_FOLDER}"/A_qc_before_trim \
+"${SAMPLES_FOLDER}"*fastq.gz 
 ```
 
 ## Summaries of qualities
 ```{bash}
-
+multiqc --outdir "${RESULTS_FOLDER}" "${RESULTS_FOLDER}"/A_qc_before_trim
 ```
 
 ## Adapter trimming and low quality filtering ( cutadapt v2.10 )
 cutadapt -a ADAPTERfw -A ADAPTERrv -m 20 -o trimm_fileR1.fastq -p trimm-fileR2.fastq file_input1.fastq file_input2.fastq
 ```{bash}
+mkdir "${RESULTS_FOLDER}B_trimmed_samples" 
 
+for file in "${SAMPLES_FOLDER}"*_R1_001.fastq.gz; 
+do 
+samp=`basename ${file}`;
+SAMPLE=$(echo ${samp} | sed "s/_R1_\001\.fastq.gz//") ;
+echo "start:$(date)";
+cutadapt -a AGATCGGAAGAG -A AGATCGGAAGAG -m 20 -j 13 -o "${RESULTS_FOLDER}B_trimmed_samples"/${SAMPLE}_R1_001_trimmed.fastq.gz -p "${RESULTS_FOLDER}B_trimmed_samples"/${SAMPLE}_R2_001_trimmed.fastq.gz "${SAMPLES_FOLDER}"${SAMPLE}_R1_001.fastq.gz "${SAMPLES_FOLDER}"${SAMPLE}_R2_001.fastq.gz ; 
+echo "end:$(date)";
+done
 ```
 
-## assembly de novo (megahit v1.2.9)
+## de novo assembly (megahit v1.2.9)
 input = fastq
 output = contigs.fa file inside the folder of each sample
 /usr/local/MEGAHIT-1.2.9-Linux-x86_64-static/bin/megahit -t 12 --out-prefix sample1 -1 R1.fastq -2 R2.fastq -o /path/to/output
 ```{bash}
-for i in *_R1_001_trim.fastq; do SAMPLE=$(echo ${i} | sed "s/_R1_\001\_trim.fastq//"); megahit -t 14 --out-prefix ${SAMPLE} -1 ${SAMPLE}_R1_001_trim.fastq -2 ${SAMPLE}_R2_001_trim.fastq -o ../5_Assembly_megahit/${SAMPLE}; done
+mkdir "${RESULTS_FOLDER}C_Assembly_megahit" 
+
+for file in "${RESULTS_FOLDER}B_trimmed_samples"/*_R1_001_trimmed.fastq.gz; 
+do 
+samp=`basename ${file}`;
+SAMPLE=$(echo ${samp} | sed "s/_R1_\001\_trimmed.fastq.gz//") ;
+echo "$SAMPLE   start:$(date)";
+megahit -t 13 --out-prefix ${SAMPLE} -1 "${RESULTS_FOLDER}B_trimmed_samples"/${SAMPLE}_R1_001_trimmed.fastq.gz -2 "${RESULTS_FOLDER}B_trimmed_samples"/${SAMPLE}_R2_001_trimmed.fastq.gz -o "${RESULTS_FOLDER}C_Assembly_megahit/${SAMPLE}";
+echo "end:$(date)";
+done
+
 ```
 
 ## Quality control of the assembly with QUAST 
