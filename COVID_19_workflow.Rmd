@@ -1,7 +1,7 @@
 ---
 title: "Viral Annotation Looking Experiment RNA Isolation Analysis"
 subtitle: "Computational workflow for the analysis of COVID-19 samples"
-author: "Valeria Mirici Kappa, Constantinos Yeles (Konstantinos Geles)"
+author: "Valeria Mirici Kappa, Carlo Ferravante, Constantinos Yeles (Konstantinos Geles)"
 date: "Initial Commit: 09/12/2021 Last Update: `r format(Sys.Date(), '%a %b %d %Y')`"
 output:
   html_document:
@@ -113,12 +113,10 @@ bwa mem -t 8 "my_data/SARS_COV2_isolate_Wuhan-Hu/SARS_COV2_isolate_Wuhan-Hu-1.fa
 echo "####### end:$(date) #######";
 done
 
-cd ../6.1_Aln_bwa
-for i in *.sam; do samtools view -S -@14 -b $i >../6.2_SAMtoBAM/${i/.sam/.bam}; done
-cd ../6.2_SAMtoBAM
-for i in *.bam; do samtools sort -@14 $i -o ../6.3_sortedBAM/${i/.bam/_sorted.bam}; done
-cd ../6.3_sortedBAM
-for i in *.bam; do echo $i; samtools index $i -@14; done
+for i in my_data/export/D_Alignment_bwa/*.bam; 
+do echo "######### Sample: $i #########"; 
+samtools index $i -@12; 
+done
 ```
 
 ## Variant calling (freebayes  v1.3.2-dirty)
@@ -126,7 +124,15 @@ input = sorted and indexed bam file
 output = vcf
 freebayes -p 1 --min-coverage 5 -q 20 -f /path/to/virusGenome/MN908947.fa -b /path/to/bam/sample1.bam > /path/to/out/sample1_var.vcf
 ```{bash}
-for i in *.bam; do freebayes -p 1 --min-coverage 5 -q 20 -f ../SARS_COV2_isolate_Wuhan-Hu-1.fasta -b $i  > ../${i/_sorted.bam/.vcf}; done
+mkdir "${RESULTS_FOLDER}E_Variant_Calling" 
+
+for file in "${RESULTS_FOLDER}D_Alignment_bwa"/*.bam;
+do 
+samp=`basename ${file}`;
+echo "####### Sample: $samp   start:$(date) ##########";
+/opt/miniconda3/envs/freebayes/bin/freebayes -p 1 --min-coverage 5 -q 20 -f "my_data/SARS_COV2_isolate_Wuhan-Hu/SARS_COV2_isolate_Wuhan-Hu-1.fasta" -b $file  > "${RESULTS_FOLDER}E_Variant_Calling"/${samp/_sorted.bam/.vcf};
+echo "####### end:$(date) #######";
+done
 ```
 
 ## Variant filtering
