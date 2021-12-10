@@ -86,6 +86,8 @@ done
 ## Quality control of the assembly with QUAST 
 ```{bash}
 (web http://cab.cc.spbu.ru/quast/)
+mkdir my_data/export/C_Assembly_megahit/all_contigs
+cp my_data/export/C_Assembly_megahit/*/*.contigs.fa my_data/export/C_Assembly_megahit/all_contigs/
 ```
 
 ## Use of contigs.fa to check the quality and classification to clade, lineage
@@ -100,7 +102,16 @@ input = fastq
 output = sorted and indexed bam file
 bwa mem ref.fa read1.fq read2.fq > aln-pe.sam
 ```{bash}
-for i in *_R1_001_trim.fastq; do SAMPLE=$(echo ${i} | sed "s/_R1_\001\_trim.fastq//"); bwa mem -t 14 ../SARS_COV2_isolate_Wuhan-Hu-1.fasta ${SAMPLE}_R1_001_trim.fastq ${SAMPLE}_R2_001_trim.fastq > ../6.1_Aln_bwa/${SAMPLE}.sam; done
+mkdir "${RESULTS_FOLDER}D_Alignment_bwa" 
+
+for file in "${RESULTS_FOLDER}B_trimmed_samples"/*_R1_001_trimmed.fastq.gz;
+do 
+samp=`basename ${file}`;
+SAMPLE=$(echo ${samp} | sed "s/_R1_\001\_trimmed.fastq.gz//") ;
+echo "####### Sample: $SAMPLE   start:$(date) ##########";
+bwa mem -t 8 "my_data/SARS_COV2_isolate_Wuhan-Hu/SARS_COV2_isolate_Wuhan-Hu-1.fasta" "${RESULTS_FOLDER}B_trimmed_samples"/${SAMPLE}_R1_001_trimmed.fastq.gz "${RESULTS_FOLDER}B_trimmed_samples"/${SAMPLE}_R2_001_trimmed.fastq.gz | samtools sort -@5 -o "${RESULTS_FOLDER}D_Alignment_bwa"/${SAMPLE}_sorted.bam
+echo "####### end:$(date) #######";
+done
 
 cd ../6.1_Aln_bwa
 for i in *.sam; do samtools view -S -@14 -b $i >../6.2_SAMtoBAM/${i/.sam/.bam}; done
