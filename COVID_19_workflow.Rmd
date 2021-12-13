@@ -133,6 +133,21 @@ echo "####### Sample: $samp   start:$(date) ##########";
 /opt/miniconda3/envs/freebayes/bin/freebayes -p 1 --min-coverage 5 -q 20 -f "my_data/SARS_COV2_isolate_Wuhan-Hu/SARS_COV2_isolate_Wuhan-Hu-1.fasta" -b $file  > "${RESULTS_FOLDER}E_Variant_Calling"/${samp/_sorted.bam/.vcf};
 echo "####### end:$(date) #######";
 done
+
+### not working yet
+printf '%s\n' "${RESULTS_FOLDER}D_Alignment_bwa"/*.bam | parallel -j 4 \
+--dryrun --pipe "samp=basename {} && echo '####### Sample: $samp   start:$(date) ##########' \
+echo '####### $samp end:$(date) #######'"
+   -evaluate-sequence 'mean' -channel RGB -normalize ../out2/{1}
+
+for file in "${RESULTS_FOLDER}D_Alignment_bwa"/*.bam;
+do 
+sem -j 4 'samp=basename ${file} && echo "####### Sample: $samp   start:$(date) ##########" && \
+/opt/miniconda3/envs/freebayes/bin/freebayes -p 1 --min-coverage 5 -q 20 -f "my_data/SARS_COV2_isolate_Wuhan-Hu/SARS_COV2_isolate_Wuhan-Hu-1.fasta" -b $file  > "${RESULTS_FOLDER}test_vcf"/${samp/_sorted.bam/.vcf} && \
+echo "####### end:$(date) #######"'
+done
+sem --wait
+
 ```
 
 ## Variant filtering
@@ -140,7 +155,15 @@ input = vcf
 output = filtered vcf 
 snippy-vcf_filter --mincov=f Minimum depth (DP) (default '10')
 ```{bash}
-for i in *.vcf; do snippy-vcf_filter --minfrac=0.1 --minqual=20  $i  > 8_filt_vcf_1/${i/.vcf/_filter.vcf} 2> 8_filt_vcf_1/${i/.vcf/_stat.txt}; done
+mkdir "${RESULTS_FOLDER}F_Variant_filtering" 
+
+for file in "${RESULTS_FOLDER}E_Variant_Calling"/*.vcf;
+do 
+samp=`basename ${file}`;
+echo "####### Sample: $samp start:$(date) ##########";
+/opt/miniconda3/envs/snippy/bin/snippy-vcf_filter --minfrac=0.1 --minqual=20 $file > "${RESULTS_FOLDER}F_Variant_filtering"/${samp/.vcf/_filtered.vcf} 2> "${RESULTS_FOLDER}F_Variant_filtering"/${samp/.vcf/_stat.txt};
+echo "####### end:$(date) #######";
+done
 ```
 
 ## Variant annotation VEP
