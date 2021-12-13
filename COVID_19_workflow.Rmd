@@ -173,17 +173,51 @@ output = annotated vcf
 using VEP web version (https://covid-19.ensembl.org/Sars_cov_2/Tools/VEP) or commandline 
 ```
 
-## Do the complete table vcf for all samples
+## Make the consensus sequences
 ```{bash}
-for i in *.vcf; do bcftools annotate --set-id ${i/_filter.vcf/} $i  > ../9_vcf_ID/${i/_filter.vcf/_vcf_ID.vcf}; done  
-# aggiunge il nome del campione nella colonna ID (nella quale sono presenti solo .)
-bcftools concat *.vcf > all_sample.vcf
+mkdir "${RESULTS_FOLDER}G_bcftools_consensus" 
 
+for file in "${RESULTS_FOLDER}F_Variant_filtering"/*.vcf;
+do 
+samp=`basename ${file}`;
+echo "####### Sample: $samp start:$(date) ##########";
+bcftools view ${file} -Oz -o "${RESULTS_FOLDER}G_bcftools_consensus"/${samp}.gz
+bcftools index "${RESULTS_FOLDER}G_bcftools_consensus"/${samp}.gz
+cat "my_data/SARS_COV2_isolate_Wuhan-Hu/SARS_COV2_isolate_Wuhan-Hu-1.fasta" | bcftools consensus "${RESULTS_FOLDER}G_bcftools_consensus"/${samp}.gz > "${RESULTS_FOLDER}G_bcftools_consensus"/consensus_${samp}.fa
+echo "####### end:$(date) #######";
+done
 ```
 
 ## Coverage
 input = sorted and indexed bam
 output = table with number of reads for each base position 
 ```{bash}
-for i in *sorted.bam; do SAMPLE=$(echo ${i} | sed "s/_sorted.bam//"); qualimap bamqc -bam ${SAMPLE}_sorted.bam -gff Sars_cov_2.ASM985889v3.101.gff -ip -nt 1 -oc ../4.3_Coverage/${SAMPLE}_nonzerocov.txt -outdir ../4.3_Coverage/${SAMPLE} -outformat PDF:HTML; done
+mkdir "${RESULTS_FOLDER}H_coverage" 
+
+for file in "${RESULTS_FOLDER}D_Alignment_bwa"/*.bam;
+do 
+samp=`basename ${file}`;
+echo "####### Sample: $samp start:$(date) ##########";
+./qualimap_v2.2.1/qualimap bamqc -bam ${file} -gff "my_data/SARS_COV2_isolate_Wuhan-Hu/Sars_cov_2.ASM985889v3.101.gff" -ip -nt 1 -oc "${RESULTS_FOLDER}H_coverage"/${samp/_sorted.bam/_nonzerocov.txt} -outdir "${RESULTS_FOLDER}H_coverage"/${samp/_sorted.bam/} -outformat PDF:HTML --java-mem-size=25G; 
+echo "####### end:$(date) #######";
+done
 ```
+
+## Do the complete table vcf for all samples !!!!!NOT USED YET !!!!!
+```{bash}
+mkdir "${RESULTS_FOLDER}G_bcftools" 
+
+for file in "${RESULTS_FOLDER}F_Variant_filtering"/*.vcf;
+do 
+samp=`basename ${file}`;
+echo "####### Sample: $samp start:$(date) ##########";
+bcftools annotate --set-id ${samp/_filtered.vcf/} $file  > "${RESULTS_FOLDER}G_bcftools"/${samp/_filtered.vcf/_vcf_ID.vcf};
+echo "####### end:$(date) #######";
+done
+
+# aggiunge il nome del campione nella colonna ID (nella quale sono presenti solo .)
+bcftools concat *.vcf > all_sample.vcf
+
+```
+
+
