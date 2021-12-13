@@ -9,14 +9,20 @@ if (length(args)==0) {
   stop("At least one argument must be supplied (input file).n
        Usage: Rscript add_filename_to_fasta_header.R 'path/to/contigs  path/to/write/all/contigs/fasta'", call.=FALSE)
 }
-library(Biostrings,quietly = TRUE)
-contig_files <- list.files(path = args[1], pattern = "contigs", full.names = TRUE, recursive = TRUE)
 
-contig_files <- contig_files[grep(contig_files, pattern="intermediate_contigs|all_contigs", invert=TRUE)]
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+if (!requireNamespace("Biostrings", quietly = TRUE))
+  BiocManager::install("Biostrings", ask = FALSE)
 
-names(contig_files) <- gsub(x=basename(contig_files), pattern=".contigs.fa", replacement="")
+library(Biostrings, verbose = TRUE, quietly = TRUE)
+consensus_files <- list.files(path = args[1], pattern = "consensus", full.names = TRUE, recursive = TRUE)
 
-my_fasta <- lapply(contig_files, Biostrings::readDNAStringSet)
+#consensus_files <- consensus_files[grep(consensus_files, pattern="intermediate_contigs|all_contigs", invert=TRUE)]
+
+names(consensus_files) <- gsub(x=basename(consensus_files), pattern="_filtered.vcf.fa", replacement="")
+
+my_fasta <- lapply(consensus_files, Biostrings::readDNAStringSet)
 
 my_named_fasta <- unlist(Biostrings::DNAStringSetList(my_fasta))
 
